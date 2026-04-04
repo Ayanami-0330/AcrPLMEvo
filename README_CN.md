@@ -76,8 +76,30 @@
 
 - 阶段 1：native（主干冻结，不用 LoRA/DoRA）
 - 阶段 2：LoRA/DoRA 微调并保存 adapter
-- 阶段 3：在交叉输入单元上做冻结 adapter 评估
+- 阶段 3：对 S2-S5 全部单元执行冻结 adapter 特征提取评估
 - 阶段 4：重建统一汇总表
+
+面向审稿的最终结果表仅由冻结评估注册表重建：
+
+- `results/experiments_frozen_no_lora.csv`（A/B：native 冻结主干）
+- `results/experiments_frozen.csv`（C/D：微调后主干 + 同变体输入）
+- `results/experiments_frozen_cross_variant.csv`（E/F：微调后主干 + 跨变体输入）
+
+`results/experiments.csv` 仅保留为 adapter 微调日志，不作为最终审稿汇总来源。
+
+## 为什么是“10组实验”但“6类结果”
+
+`run-10` 在执行层面会跑满 G01-G10 共 10 个单元，因为 S2-S5 按 adapter 类型与输入配对被展开：
+
+- S1：native 冻结主干（2 组）
+- S2-S5：LoRA/DoRA x 同变体/跨变体输入（8 组）
+
+但在面向审稿的类别汇总中，LoRA 与 DoRA 不作为额外类别轴拆分，而是按以下两个维度组织：
+
+- 主干状态（`native`、`tuned_lm_only`、`tuned_lm_pssm`）
+- 预测时外部特征（`lm_only`、`lm_pssm`）
+
+因此类别数为 3 x 2 = 6。对于适用类别，LoRA 与 DoRA 的结果仍保留在同一类别下的 adapter 行中。
 
 另有独立的补充复评脚本：
 
@@ -141,6 +163,12 @@ llm_lora_experiments/
     frozen_baseline/
       run_supplemental_frozen_eval.py
   results/
+    experiments_frozen_no_lora.csv
+    experiments_frozen.csv
+    experiments_frozen_cross_variant.csv
+    6categories_seedmean_auc_auprc.csv
+    6categories_best_single_seed_by_auc_then_auprc.csv
+    plots/6category/six_category_mean_std_by_model.csv
     experiments.csv
     summary_by_model_variant.csv
     summary_10group_runs.csv

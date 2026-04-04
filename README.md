@@ -78,8 +78,30 @@ Main entry is `scripts/main.py` and `run-10` executes the full 10-group table.
 
 - Stage 1: native frozen backbone (no LoRA/DoRA)
 - Stage 2: adapter fine-tuning (LoRA/DoRA) and adapter saving
-- Stage 3: frozen adapter evaluation on cross feature cells
+- Stage 3: frozen-adapter feature-extractor evaluation for all S2-S5 cells
 - Stage 4: unified summary rebuild
+
+Reviewer-facing result tables are rebuilt from frozen-evaluation registries only:
+
+- `results/experiments_frozen_no_lora.csv` (A/B: native frozen backbone)
+- `results/experiments_frozen.csv` (C/D: tuned backbone, same external feature)
+- `results/experiments_frozen_cross_variant.csv` (E/F: tuned backbone, cross external feature)
+
+`results/experiments.csv` remains as adapter fine-tuning logs, not the final reviewer summary source.
+
+## Why "10 Groups" but "6 Categories"
+
+`run-10` executes 10 protocol cells (G01-G10) because S2-S5 are expanded by adapter type and input pairing:
+
+- S1: native frozen (2 groups)
+- S2-S5: LoRA/DoRA x same/cross external feature cells (8 groups)
+
+For reviewer-facing category tables, LoRA and DoRA are not treated as separate category axes. We report six categories by collapsing over the adapter family axis and organizing by:
+
+- backbone state (`native`, `tuned_lm_only`, `tuned_lm_pssm`)
+- prediction-time external feature (`lm_only`, `lm_pssm`)
+
+This yields 3 x 2 = 6 categories, while each category still contains LoRA and DoRA rows where applicable.
 
 A supplemental re-evaluation driver is provided separately:
 
@@ -147,6 +169,12 @@ llm_lora_experiments/
 │   └── frozen_baseline/
 │       └── run_supplemental_frozen_eval.py
 └── results/
+	├── experiments_frozen_no_lora.csv
+	├── experiments_frozen.csv
+	├── experiments_frozen_cross_variant.csv
+	├── 6categories_seedmean_auc_auprc.csv
+	├── 6categories_best_single_seed_by_auc_then_auprc.csv
+	├── plots/6category/six_category_mean_std_by_model.csv
     ├── experiments.csv
     ├── summary_by_model_variant.csv
     ├── summary_10group_runs.csv

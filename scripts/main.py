@@ -172,10 +172,15 @@ DEFAULT_SEEDS = [11, 22, 33, 44, 55]
 EXPERIMENTS_CSV = RESULTS_ROOT / "experiments.csv"
 SUMMARY_CSV = RESULTS_ROOT / "summary_by_model_variant.csv"
 DELTA_CSV = RESULTS_ROOT / "delta_vs_lm_only.csv"
+EXPERIMENTS_FROZEN_CSV = RESULTS_ROOT / "experiments_frozen.csv"
 EXPERIMENTS_FROZEN_CROSS_CSV = RESULTS_ROOT / "experiments_frozen_cross_variant.csv"
 EXPERIMENTS_FROZEN_NO_LORA_CSV = RESULTS_ROOT / "experiments_frozen_no_lora.csv"
 SUMMARY_10GROUP_RUNS_CSV = RESULTS_ROOT / "summary_10group_runs.csv"
 SUMMARY_10GROUP_BY_MODEL_CSV = RESULTS_ROOT / "summary_10group_by_model.csv"
+SIX_CATEGORY_DIR = RESULTS_ROOT / "plots" / "6category"
+SIX_CATEGORY_MEAN_CSV = SIX_CATEGORY_DIR / "six_category_mean_std_by_model.csv"
+SIX_CATEGORY_SEEDMEAN_CSV = RESULTS_ROOT / "6categories_seedmean_auc_auprc.csv"
+SIX_CATEGORY_BEST_CSV = RESULTS_ROOT / "6categories_best_single_seed_by_auc_then_auprc.csv"
 
 
 @dataclass
@@ -844,6 +849,28 @@ def update_frozen_cross_registry(row: Dict[str, object], drop_diagonal: bool = F
     df.to_csv(EXPERIMENTS_FROZEN_CROSS_CSV, index=False)
 
 
+def update_frozen_diagonal_registry(row: Dict[str, object]) -> None:
+    if EXPERIMENTS_FROZEN_CSV.exists():
+        df = pd.read_csv(EXPERIMENTS_FROZEN_CSV)
+        df = _clean_header_rows(df)
+    else:
+        df = pd.DataFrame()
+
+    if len(df) > 0:
+        mask = ~(
+            (df["adapter_type"].astype(str) == str(row["adapter_type"]))
+            & (df["model"].astype(str) == str(row["model"]))
+            & (df["variant"].astype(str) == str(row["variant"]))
+            & (df["seed"].astype(int) == int(row["seed"]))
+        )
+        df = df.loc[mask].copy()
+
+    df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+    df = df.sort_values(["adapter_type", "model", "variant", "seed"]).reset_index(drop=True)
+    EXPERIMENTS_FROZEN_CSV.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(EXPERIMENTS_FROZEN_CSV, index=False)
+
+
 def update_frozen_no_lora_registry(row: Dict[str, object]) -> None:
     if EXPERIMENTS_FROZEN_NO_LORA_CSV.exists():
         df = pd.read_csv(EXPERIMENTS_FROZEN_NO_LORA_CSV)
@@ -1011,13 +1038,24 @@ def predict_prob_head(model: SmallHead, x: np.ndarray, batch_size: int, device: 
 
 
 def _variant_pairs(pair_mode: str) -> List[Tuple[str, str]]:
-    # Supplement-only cross pairs from the design table.
-    # 只补实验设计中缺失的交叉组合。
+    # Frozen evaluation pairs from the design table.
+    # 冻结评估阶段使用的组合。
     # Group mapping / 组映射:
+    # - (lm_only -> lm_only):  LoRA=G03, DoRA=G05
     # - (lm_only -> lm_pssm): LoRA=G04, DoRA=G06
+    # - (lm_pssm -> lm_pssm): LoRA=G07, DoRA=G09
     # - (lm_pssm -> lm_only): LoRA=G08, DoRA=G10
     if pair_mode == "missing_only":
         return [("lm_only", "lm_pssm"), ("lm_pssm", "lm_only")]
+    if pair_mode == "missing_plus_pssm_diagonal":
+        return [("lm_only", "lm_pssm"), ("lm_pssm", "lm_only"), ("lm_pssm", "lm_pssm")]
+    if pair_mode == "all_with_diagonals":
+        return [
+            ("lm_only", "lm_only"),
+            ("lm_only", "lm_pssm"),
+            ("lm_pssm", "lm_pssm"),
+            ("lm_pssm", "lm_only"),
+        ]
     if pair_mode == "target_only":
         return [("lm_only", "lm_pssm")]
     raise ValueError(f"Unsupported pair_mode: {pair_mode}")
@@ -1051,6 +1089,22 @@ def frozen_no_lora_row_exists(cfg: NativeFrozenRunConfig) -> bool:
         (df["model"].astype(str) == str(cfg.model_name))
         & (df["variant"].astype(str) == str(cfg.variant))
         & (df["seed"].astype(int) == int(cfg.seed))
+    )
+    return bool(mask.any())
+
+
+def frozen_diagonal_row_exists(adapter_type: str, model_name: str, variant: str, seed: int) -> bool:
+    if not EXPERIMENTS_FROZEN_CSV.exists():
+        return False
+    df = pd.read_csv(EXPERIMENTS_FROZEN_CSV)
+    df = _clean_header_rows(df)
+    if len(df) == 0:
+        return False
+    mask = (
+        (df["adapter_type"].astype(str) == str(adapter_type))
+        & (df["model"].astype(str) == str(model_name))
+        & (df["variant"].astype(str) == str(variant))
+        & (df["seed"].astype(int) == int(seed))
     )
     return bool(mask.any())
 
@@ -1199,6 +1253,24 @@ def run_one_cross_frozen(cfg: CrossFrozenRunConfig, resume: bool) -> None:
         "config_path": str(out_dir / "config.json"),
     }
     update_frozen_cross_registry(row, drop_diagonal=False)
+
+    if cfg.adapter_variant == cfg.feature_variant:
+        diagonal_row = {
+            "adapter_type": cfg.adapter_type,
+            "model": cfg.model_name,
+            "variant": cfg.adapter_variant,
+            "seed": cfg.seed,
+            "AUC": float(test_metrics["AUC"]),
+            "AUPRC": float(test_metrics["AUPRC"]),
+            "ACC": float(test_metrics["ACC"]),
+            "F1": float(test_metrics["F1"]),
+            "MCC": float(test_metrics["MCC"]),
+            "Threshold": float(test_metrics["Threshold"]),
+            "metrics_path": str(out_dir / "metrics.json"),
+            "predictions_path": str(out_dir / "predictions.csv"),
+            "config_path": str(out_dir / "config.json"),
+        }
+        update_frozen_diagonal_registry(diagonal_row)
 
     marker.parent.mkdir(parents=True, exist_ok=True)
     marker.write_text("done\n", encoding="utf-8")
@@ -1449,7 +1521,11 @@ def _append_group_mapping_rows(rows: List[Dict[str, object]], df: pd.DataFrame, 
             adapter_variant = str(rec.get("adapter_variant", ""))
             feature_variant = str(rec.get("feature_variant", ""))
             external = feature_variant
-            if adapter_type == "lora" and adapter_variant == "lm_only" and feature_variant == "lm_pssm":
+            if adapter_type == "lora" and adapter_variant == "lm_only" and feature_variant == "lm_only":
+                gid, strategy = "G03", "S2"
+            elif adapter_type == "dora" and adapter_variant == "lm_only" and feature_variant == "lm_only":
+                gid, strategy = "G05", "S3"
+            elif adapter_type == "lora" and adapter_variant == "lm_only" and feature_variant == "lm_pssm":
                 gid, strategy = "G04", "S2"
             elif adapter_type == "dora" and adapter_variant == "lm_only" and feature_variant == "lm_pssm":
                 gid, strategy = "G06", "S3"
@@ -1457,6 +1533,10 @@ def _append_group_mapping_rows(rows: List[Dict[str, object]], df: pd.DataFrame, 
                 gid, strategy = "G08", "S4"
             elif adapter_type == "dora" and adapter_variant == "lm_pssm" and feature_variant == "lm_only":
                 gid, strategy = "G10", "S5"
+            elif adapter_type == "lora" and adapter_variant == "lm_pssm" and feature_variant == "lm_pssm":
+                gid, strategy = "G07", "S4"
+            elif adapter_type == "dora" and adapter_variant == "lm_pssm" and feature_variant == "lm_pssm":
+                gid, strategy = "G09", "S5"
             else:
                 continue
         else:
@@ -1483,23 +1563,28 @@ def _append_group_mapping_rows(rows: List[Dict[str, object]], df: pd.DataFrame, 
 
 def rebuild_10_group_summaries(output_root: Path = RESULTS_ROOT) -> None:
     rows: List[Dict[str, object]] = []
+    cross_df: Optional[pd.DataFrame] = None
+    diagonal_df: Optional[pd.DataFrame] = None
+
+    if EXPERIMENTS_FROZEN_CROSS_CSV.exists():
+        cross_df = _clean_header_rows(pd.read_csv(EXPERIMENTS_FROZEN_CROSS_CSV))
 
     if EXPERIMENTS_FROZEN_NO_LORA_CSV.exists():
         native_df = _clean_header_rows(pd.read_csv(EXPERIMENTS_FROZEN_NO_LORA_CSV))
         if len(native_df) > 0:
             _append_group_mapping_rows(rows, native_df, source="native")
 
-    if EXPERIMENTS_CSV.exists():
-        matrix_df = pd.read_csv(EXPERIMENTS_CSV)
-        if "adapter_type" not in matrix_df.columns:
-            matrix_df["adapter_type"] = "lora"
-        if len(matrix_df) > 0:
-            _append_group_mapping_rows(rows, matrix_df, source="diagonal")
+    if EXPERIMENTS_FROZEN_CSV.exists():
+        diagonal_df = _clean_header_rows(pd.read_csv(EXPERIMENTS_FROZEN_CSV))
+        if len(diagonal_df) > 0:
+            _append_group_mapping_rows(rows, diagonal_df, source="diagonal")
 
-    if EXPERIMENTS_FROZEN_CROSS_CSV.exists():
-        cross_df = _clean_header_rows(pd.read_csv(EXPERIMENTS_FROZEN_CROSS_CSV))
-        if len(cross_df) > 0:
-            _append_group_mapping_rows(rows, cross_df, source="cross")
+    if cross_df is not None and len(cross_df) > 0:
+        cross_only = cross_df.loc[
+            cross_df["adapter_variant"].astype(str) != cross_df["feature_variant"].astype(str)
+        ].copy()
+        if len(cross_only) > 0:
+            _append_group_mapping_rows(rows, cross_only, source="cross")
 
     if not rows:
         return
@@ -1532,6 +1617,153 @@ def rebuild_10_group_summaries(output_root: Path = RESULTS_ROOT) -> None:
 
     agg_df = pd.DataFrame(agg_rows).sort_values(["group_id", "model"]).reset_index(drop=True)
     agg_df.to_csv(output_root / SUMMARY_10GROUP_BY_MODEL_CSV.name, index=False)
+
+
+def _collect_six_category_rows(output_root: Path = RESULTS_ROOT) -> pd.DataFrame:
+    rows: List[Dict[str, object]] = []
+
+    if EXPERIMENTS_FROZEN_NO_LORA_CSV.exists():
+        no_lora = _clean_header_rows(pd.read_csv(EXPERIMENTS_FROZEN_NO_LORA_CSV))
+        for _, rec in no_lora.iterrows():
+            rows.append(
+                {
+                    "main_backbone": "native",
+                    "external_feature": str(rec.get("variant", "")),
+                    "adapter_type": "none",
+                    "model": str(rec.get("model", "")),
+                    "seed": int(rec.get("seed", -1)),
+                    "AUC": float(rec.get("AUC", np.nan)),
+                    "AUPRC": float(rec.get("AUPRC", np.nan)),
+                    "ACC": float(rec.get("ACC", np.nan)),
+                    "F1": float(rec.get("F1", np.nan)),
+                    "MCC": float(rec.get("MCC", np.nan)),
+                }
+            )
+
+    if EXPERIMENTS_FROZEN_CSV.exists():
+        diag = _clean_header_rows(pd.read_csv(EXPERIMENTS_FROZEN_CSV))
+        for _, rec in diag.iterrows():
+            variant = str(rec.get("variant", ""))
+            if variant not in {"lm_only", "lm_pssm"}:
+                continue
+            rows.append(
+                {
+                    "main_backbone": f"tuned_{variant}",
+                    "external_feature": variant,
+                    "adapter_type": str(rec.get("adapter_type", "")),
+                    "model": str(rec.get("model", "")),
+                    "seed": int(rec.get("seed", -1)),
+                    "AUC": float(rec.get("AUC", np.nan)),
+                    "AUPRC": float(rec.get("AUPRC", np.nan)),
+                    "ACC": float(rec.get("ACC", np.nan)),
+                    "F1": float(rec.get("F1", np.nan)),
+                    "MCC": float(rec.get("MCC", np.nan)),
+                }
+            )
+
+    if EXPERIMENTS_FROZEN_CROSS_CSV.exists():
+        cross = _clean_header_rows(pd.read_csv(EXPERIMENTS_FROZEN_CROSS_CSV))
+        if len(cross) > 0:
+            cross = cross.loc[cross["adapter_variant"].astype(str) != cross["feature_variant"].astype(str)].copy()
+        for _, rec in cross.iterrows():
+            rows.append(
+                {
+                    "main_backbone": f"tuned_{str(rec.get('adapter_variant', ''))}",
+                    "external_feature": str(rec.get("feature_variant", "")),
+                    "adapter_type": str(rec.get("adapter_type", "")),
+                    "model": str(rec.get("model", "")),
+                    "seed": int(rec.get("seed", -1)),
+                    "AUC": float(rec.get("AUC", np.nan)),
+                    "AUPRC": float(rec.get("AUPRC", np.nan)),
+                    "ACC": float(rec.get("ACC", np.nan)),
+                    "F1": float(rec.get("F1", np.nan)),
+                    "MCC": float(rec.get("MCC", np.nan)),
+                }
+            )
+
+    if not rows:
+        return pd.DataFrame()
+
+    out = pd.DataFrame(rows)
+    out = out.sort_values(["main_backbone", "external_feature", "adapter_type", "model", "seed"]).reset_index(drop=True)
+    return out
+
+
+def rebuild_six_category_tables(output_root: Path = RESULTS_ROOT) -> None:
+    df = _collect_six_category_rows(output_root)
+    if len(df) == 0:
+        return
+
+    grouped = df.groupby(["main_backbone", "external_feature", "adapter_type", "model"], as_index=False)
+
+    mean_rows: List[Dict[str, object]] = []
+    pretty_rows: List[Dict[str, object]] = []
+    for keys, grp in grouped:
+        main_backbone, external_feature, adapter_type, model = keys
+        row = {
+            "main_backbone": main_backbone,
+            "external_feature": external_feature,
+            "adapter_type": adapter_type,
+            "model": model,
+            "n_seeds": int(grp["seed"].nunique()),
+            "mean_AUC": float(grp["AUC"].mean()),
+            "mean_AUPRC": float(grp["AUPRC"].mean()),
+            "mean_F1": float(grp["F1"].mean()),
+            "mean_MCC": float(grp["MCC"].mean()),
+        }
+        mean_rows.append(row)
+
+        method = (
+            "Frozen native"
+            if main_backbone == "native"
+            else f"{adapter_type.upper()}-tuned on {main_backbone.replace('tuned_', '')}"
+        )
+        pretty_rows.append(
+            {
+                "external_feature": external_feature,
+                "method": method,
+                "model": model,
+                "AUC_mean": row["mean_AUC"],
+                "AUC_std": float(grp["AUC"].std(ddof=0)),
+                "AUPRC_mean": row["mean_AUPRC"],
+                "AUPRC_std": float(grp["AUPRC"].std(ddof=0)),
+                "F1_mean": row["mean_F1"],
+                "F1_std": float(grp["F1"].std(ddof=0)),
+                "MCC_mean": row["mean_MCC"],
+                "MCC_std": float(grp["MCC"].std(ddof=0)),
+            }
+        )
+
+    mean_df = pd.DataFrame(mean_rows).sort_values(["main_backbone", "external_feature", "adapter_type", "model"]).reset_index(drop=True)
+    mean_df.to_csv(output_root / SIX_CATEGORY_SEEDMEAN_CSV.name, index=False)
+
+    best_rows: List[Dict[str, object]] = []
+    for keys, grp in grouped:
+        main_backbone, external_feature, adapter_type, model = keys
+        ranked = grp.sort_values(["AUC", "AUPRC", "F1", "MCC", "seed"], ascending=[False, False, False, False, True])
+        top = ranked.iloc[0]
+        best_rows.append(
+            {
+                "main_backbone": main_backbone,
+                "external_feature": external_feature,
+                "adapter_type": adapter_type,
+                "model": model,
+                "best_seed": int(top["seed"]),
+                "best_AUC": float(top["AUC"]),
+                "best_AUPRC": float(top["AUPRC"]),
+                "best_F1": float(top["F1"]),
+                "best_MCC": float(top["MCC"]),
+                "best_rule": "AUC desc, then AUPRC desc, then F1 desc, then MCC desc",
+            }
+        )
+
+    best_df = pd.DataFrame(best_rows).sort_values(["main_backbone", "external_feature", "adapter_type", "model"]).reset_index(drop=True)
+    best_df.to_csv(output_root / SIX_CATEGORY_BEST_CSV.name, index=False)
+
+    SIX_CATEGORY_DIR.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(pretty_rows).sort_values(["external_feature", "method", "model"]).reset_index(drop=True).to_csv(
+        SIX_CATEGORY_MEAN_CSV, index=False
+    )
 
 
 def run_ten_group_protocol(args: argparse.Namespace) -> None:
@@ -1595,11 +1827,18 @@ def run_ten_group_protocol(args: argparse.Namespace) -> None:
                     )
                     train_one_run(child_args)
 
-    print("[run-10] stage 3/4: S2-S5 cross cells (G04/G06/G08/G10)")
+    print("[run-10] stage 3/4: S2-S5 frozen cells (write diagonal to experiments_frozen, cross to cross_registry)")
     for adapter_type in ["lora", "dora"]:
         for model_name in model_list:
             for seed in seed_list:
-                for adapter_variant, feature_variant in _variant_pairs("missing_only"):
+                for adapter_variant, feature_variant in _variant_pairs("all_with_diagonals"):
+                    if bool(args.resume) and adapter_variant == feature_variant:
+                        if frozen_diagonal_row_exists(adapter_type, model_name, adapter_variant, seed):
+                            print(
+                                f"skip existing frozen diagonal: adapter={adapter_type} model={model_name} "
+                                f"variant={adapter_variant} seed={seed}"
+                            )
+                            continue
                     cfg = CrossFrozenRunConfig(
                         adapter_type=adapter_type,
                         model_name=model_name,
@@ -1624,15 +1863,14 @@ def run_ten_group_protocol(args: argparse.Namespace) -> None:
 
 
 def rebuild_summaries(output_root: Path = RESULTS_ROOT) -> None:
-    experiments_path = output_root / "experiments.csv"
-    if not experiments_path.exists():
+    if not EXPERIMENTS_FROZEN_CSV.exists():
         return
 
-    df = pd.read_csv(experiments_path)
-    if "adapter_type" not in df.columns:
-        df["adapter_type"] = "lora"
-        df.to_csv(experiments_path, index=False)
-    metric_cols = ["AUC", "AUPRC", "ACC", "SN", "SP", "F1", "MCC", "Threshold"]
+    df = _clean_header_rows(pd.read_csv(EXPERIMENTS_FROZEN_CSV))
+    if len(df) == 0:
+        return
+
+    metric_cols = ["AUC", "AUPRC", "ACC", "F1", "MCC", "Threshold"]
     grouped = df.groupby(["adapter_type", "model", "variant"], as_index=False)
 
     rows = []
@@ -1649,7 +1887,7 @@ def rebuild_summaries(output_root: Path = RESULTS_ROOT) -> None:
         rows.append(row)
 
     summary_df = pd.DataFrame(rows).sort_values(["adapter_type", "model", "variant"]).reset_index(drop=True)
-    summary_df.to_csv(output_root / "summary_by_model_variant.csv", index=False)
+    summary_df.to_csv(output_root / SUMMARY_CSV.name, index=False)
 
     lm_only = df[df["variant"] == "lm_only"]
     lm_pssm = df[df["variant"] == "lm_pssm"]
@@ -1663,15 +1901,17 @@ def rebuild_summaries(output_root: Path = RESULTS_ROOT) -> None:
     delta_rows = []
     for (adapter_type, model_name), group in merged.groupby(["adapter_type", "model"]):
         row = {"adapter_type": adapter_type, "model": model_name, "n_seeds": int(group["seed"].nunique())}
-        for metric in ["AUC", "AUPRC", "ACC", "SN", "SP", "F1", "MCC"]:
+        for metric in ["AUC", "AUPRC", "ACC", "F1", "MCC"]:
             delta = group[f"{metric}_pssm"] - group[f"{metric}_lm_only"]
             row[f"delta_{metric}_mean"] = float(delta.mean())
             row[f"delta_{metric}_std"] = float(delta.std(ddof=0))
         delta_rows.append(row)
 
     pd.DataFrame(delta_rows).sort_values(["adapter_type", "model"]).reset_index(drop=True).to_csv(
-        output_root / "delta_vs_lm_only.csv", index=False
+        output_root / DELTA_CSV.name, index=False
     )
+
+    rebuild_six_category_tables(output_root)
 
 
 def train_one_run(args: argparse.Namespace) -> Dict[str, object]:
