@@ -122,31 +122,35 @@ It performs:
 
 ```text
 llm_lora_experiments/
-	README.md
-	README_CN.md
-	data/
-		anticrispr_benchmarks/
-	src/
-		acrplmevo/
-			pssm_fusion.py
-			pssm_pipeline/
-				prepare_fasta.py
-				extract_features.py
-				build_feature_cache.py
-	scripts/
-		main.py
-		run_full_benchmark.sh
-		prefetch_backbones.py
-		pipelines/
-			run_phase_a_adapters.sh
-			run_supplemental_frozen_eval.sh
-		frozen_baseline/
-			run_supplemental_frozen_eval.py
-	results/
-		experiments.csv
-		summary_by_model_variant.csv
-		summary_10group_runs.csv
-		summary_10group_by_model.csv
+├── README.md
+├── README_CN.md
+├── pyproject.toml
+├── data/
+│   └── anticrispr_benchmarks/
+├── notebooks/
+│   └── AcrPLMEvo.demo.ipynb
+├── src/
+│   └── acrplmevo/
+│       ├── backbones.py
+│       ├── pssm_fusion.py
+│       └── pssm_pipeline/
+│           ├── prepare_fasta.py
+│           ├── extract_features.py
+│           └── build_feature_cache.py
+├── scripts/
+│   ├── main.py
+│   ├── run_full_benchmark.sh
+│   ├── prefetch_backbones.py
+│   ├── pipelines/
+│   │   ├── run_phase_a_adapters.sh
+│   │   └── run_supplemental_frozen_eval.sh
+│   └── frozen_baseline/
+│       └── run_supplemental_frozen_eval.py
+└── results/
+    ├── experiments.csv
+    ├── summary_by_model_variant.csv
+    ├── summary_10group_runs.csv
+    └── summary_10group_by_model.csv
 ```
 
 ## Quick Start
