@@ -1,0 +1,36 @@
+# Heavy run artifacts
+results/runs/
+results/runs_frozen/
+results/runs_frozen_cross_variant/
+results/runs_frozen_no_lora/
+results/logs/
+results/**/*.png
+results/**/*.jpg
+results/**/*.jpeg
+results/**/*.svg
+results/**/*.pdf
+results/**/*.tif
+results/**/*.tiff
+results/**/*.webp
+
+# Caches and local weights
+cache/
+hf_cache/
+*.safetensors
+*.bin
+*.pt
+*.pth
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Local publish exclusions
+figures/
+data/raw/
+data/cache/
+analysis_notebooks/
