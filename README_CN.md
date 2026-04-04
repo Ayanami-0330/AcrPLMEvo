@@ -38,9 +38,8 @@
 
 - 安装 BLAST+（确保有 `psiblast` 命令）。
 - 准备可搜索的 UniRef 数据库（例如 UniRef50 FASTA 后用 `makeblastdb` 建库）。
-- 对每个样本 FASTA 运行 PSI-BLAST，输出 ASCII PSSM：
-  - `psiblast -query fasta/<sample>.fa -db /path/to/uniref50 -num_iterations 3 -evalue 1e-3 -out_ascii_pssm pssm/<sample>.pssm -num_threads 4`
-- 然后再执行上面的第 2、3 步，构建 `pssm_features_1110.parquet/csv`。
+- 对每个样本 FASTA 运行 PSI-BLAST，输出 ASCII PSSM。
+- 再执行上面的第 2、3 步，构建 `pssm_features_1110.parquet/csv`。
 
 主实验与补充复评所用的融合与阈值工具，已内置在 `src/acrplmevo/pssm_fusion.py`。
 
@@ -60,10 +59,10 @@
 
 为避免新机器复现中断：
 
-- `scripts/prefetch_backbones.py` 现在默认 `--auth-mode auto`：
+- `scripts/prefetch_backbones.py` 默认 `--auth-mode auto`：
   - 若存在 `HF_TOKEN` 或 `HUGGINGFACE_HUB_TOKEN` 则使用 token；
   - 若不存在则按公开模型无 token 下载。
-- 如果你没有 HF token，可显式使用：
+- 如果没有 HF token，可显式使用：
   - `python scripts/prefetch_backbones.py --models all --auth-mode disabled`
 - 如果模型访问需要认证，请设置 token 后使用：
   - `export HF_TOKEN=...`
@@ -85,7 +84,7 @@
 - `results/experiments_frozen.csv`（C/D：微调后主干 + 同变体输入）
 - `results/experiments_frozen_cross_variant.csv`（E/F：微调后主干 + 跨变体输入）
 
-`results/experiments.csv` 仅保留为 adapter 微调日志，不作为最终审稿汇总来源。
+adapter 微调日志可在本地运行时生成，但不属于面向审稿的最终结果表。
 
 ## 为什么是“10组实验”但“6类结果”
 
@@ -99,13 +98,7 @@
 - 主干状态（`native`、`tuned_lm_only`、`tuned_lm_pssm`）
 - 预测时外部特征（`lm_only`、`lm_pssm`）
 
-因此类别数为 3 x 2 = 6。对于适用类别，LoRA 与 DoRA 的结果仍保留在同一类别下的 adapter 行中。
-
-另有独立的补充复评脚本：
-
-- `scripts/frozen_baseline/run_supplemental_frozen_eval.py`
-
-它只复用已有 adapter，在冻结模式下训练小头，不会重新进行 adapter 微调。
+因此类别数为 `3 x 2 = 6`。对于适用类别，LoRA 与 DoRA 的结果仍保留在同一类别下的 adapter 行中。
 
 ## 阈值怎么选
 
@@ -169,8 +162,6 @@ llm_lora_experiments/
     6categories_seedmean_auc_auprc.csv
     6categories_best_single_seed_by_auc_then_auprc.csv
     plots/6category/six_category_mean_std_by_model.csv
-    experiments.csv
-    summary_by_model_variant.csv
     summary_10group_runs.csv
     summary_10group_by_model.csv
 ```

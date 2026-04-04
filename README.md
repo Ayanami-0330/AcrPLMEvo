@@ -87,7 +87,7 @@ Reviewer-facing result tables are rebuilt from frozen-evaluation registries only
 - `results/experiments_frozen.csv` (C/D: tuned backbone, same external feature)
 - `results/experiments_frozen_cross_variant.csv` (E/F: tuned backbone, cross external feature)
 
-`results/experiments.csv` remains as adapter fine-tuning logs, not the final reviewer summary source.
+Adapter fine-tuning logs can be generated locally during runs, but are not part of reviewer-facing final result tables.
 
 ## Why "10 Groups" but "6 Categories"
 
@@ -175,8 +175,6 @@ llm_lora_experiments/
 	├── 6categories_seedmean_auc_auprc.csv
 	├── 6categories_best_single_seed_by_auc_then_auprc.csv
 	├── plots/6category/six_category_mean_std_by_model.csv
-    ├── experiments.csv
-    ├── summary_by_model_variant.csv
     ├── summary_10group_runs.csv
     └── summary_10group_by_model.csv
 ```
