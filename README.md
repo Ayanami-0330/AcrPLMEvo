@@ -134,13 +134,30 @@ For main benchmark runs:
 
 ### External validation threshold
 
-External validation assets are stored under `../external_validation`.
+External validation assets are included in-repo under `external_validation` (lightweight subset).
 
 Current external notebook (`external_validation/results/external_validation_esm2_dora_pssm_seed44.ipynb`) uses:
 
 - high-recall threshold selection on validation set
 - target recall = `0.95`
 - then applies that threshold to external cases (`new_case.csv`)
+
+Included lightweight external-validation files:
+
+- `external_validation/data/new_case.csv`
+- `external_validation/data/new_case.fasta`
+- `external_validation/results/external_validation_esm2_dora_pssm_seed44.ipynb`
+- `external_validation/results/new_case_predictions_esm2_dora_pssm_seed44.csv`
+
+Path handling in the notebook is repository-relative by default, with optional environment overrides:
+
+- `ACRPLMEVO_REPO_ROOT`
+- `ACRPLMEVO_RUNS_ROOT`
+- `ACRPLMEVO_EXTERNAL_BENCHMARKS_DIR`
+- `PSSM_WORK_ROOT`
+- `NEW_CASE_PSSM_ROOT`
+
+See `external_validation/README.md` for details.
 
 ## Minimal Smoke Test
 
@@ -165,6 +182,14 @@ llm_lora_experiments/
 │   └── anticrispr_benchmarks/
 ├── notebooks/
 │   └── AcrPLMEvo.demo.ipynb
+├── external_validation/
+│   ├── README.md
+│   ├── data/
+│   │   ├── new_case.csv
+│   │   └── new_case.fasta
+│   └── results/
+│       ├── external_validation_esm2_dora_pssm_seed44.ipynb
+│       └── new_case_predictions_esm2_dora_pssm_seed44.csv
 ├── src/
 │   └── acrplmevo/
 │       ├── backbones.py

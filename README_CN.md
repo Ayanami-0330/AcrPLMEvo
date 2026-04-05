@@ -125,13 +125,30 @@ adapter 微调日志可在本地运行时生成，但不属于面向审稿的最
 
 ### 外部测试集阈值
 
-外部验证资源在 `../external_validation`。
+外部验证资源以轻量形式纳入仓库内 `external_validation` 目录。
 
 当前外部验证 notebook（`external_validation/results/external_validation_esm2_dora_pssm_seed44.ipynb`）采用：
 
 - 在 valid 上按高召回策略选阈值
 - 目标召回 `Recall = 0.95`
 - 将该阈值应用到外部样本 `new_case.csv`
+
+已纳入的轻量文件：
+
+- `external_validation/data/new_case.csv`
+- `external_validation/data/new_case.fasta`
+- `external_validation/results/external_validation_esm2_dora_pssm_seed44.ipynb`
+- `external_validation/results/new_case_predictions_esm2_dora_pssm_seed44.csv`
+
+notebook 默认使用仓库相对路径，也支持以下环境变量覆盖：
+
+- `ACRPLMEVO_REPO_ROOT`
+- `ACRPLMEVO_RUNS_ROOT`
+- `ACRPLMEVO_EXTERNAL_BENCHMARKS_DIR`
+- `PSSM_WORK_ROOT`
+- `NEW_CASE_PSSM_ROOT`
+
+详细说明见 `external_validation/README.md`。
 
 ## 最小运行测试
 
@@ -151,6 +168,14 @@ adapter 微调日志可在本地运行时生成，但不属于面向审稿的最
 llm_lora_experiments/
   README.md
   README_CN.md
+  external_validation/
+    README.md
+    data/
+      new_case.csv
+      new_case.fasta
+    results/
+      external_validation_esm2_dora_pssm_seed44.ipynb
+      new_case_predictions_esm2_dora_pssm_seed44.csv
   data/
     anticrispr_benchmarks/
   src/
