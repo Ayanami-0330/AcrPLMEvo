@@ -170,8 +170,6 @@ PSSM_FEATURE_DIR = PSSM_WORK_ROOT / "features"
 DEFAULT_PSSM_VARIANT = "1110"
 DEFAULT_SEEDS = [11, 22, 33, 44, 55]
 EXPERIMENTS_CSV = RESULTS_ROOT / "experiments.csv"
-SUMMARY_CSV = RESULTS_ROOT / "summary_by_model_variant.csv"
-DELTA_CSV = RESULTS_ROOT / "delta_vs_lm_only.csv"
 EXPERIMENTS_FROZEN_CSV = RESULTS_ROOT / "experiments_frozen.csv"
 EXPERIMENTS_FROZEN_CROSS_CSV = RESULTS_ROOT / "experiments_frozen_cross_variant.csv"
 EXPERIMENTS_FROZEN_NO_LORA_CSV = RESULTS_ROOT / "experiments_frozen_no_lora.csv"
@@ -1863,54 +1861,7 @@ def run_ten_group_protocol(args: argparse.Namespace) -> None:
 
 
 def rebuild_summaries(output_root: Path = RESULTS_ROOT) -> None:
-    if not EXPERIMENTS_FROZEN_CSV.exists():
-        return
-
-    df = _clean_header_rows(pd.read_csv(EXPERIMENTS_FROZEN_CSV))
-    if len(df) == 0:
-        return
-
-    metric_cols = ["AUC", "AUPRC", "ACC", "F1", "MCC", "Threshold"]
-    grouped = df.groupby(["adapter_type", "model", "variant"], as_index=False)
-
-    rows = []
-    for (adapter_type, model_name, variant), group in grouped:
-        row: Dict[str, object] = {
-            "adapter_type": adapter_type,
-            "model": model_name,
-            "variant": variant,
-            "n_seeds": int(group["seed"].nunique()),
-        }
-        for metric in metric_cols:
-            row[f"{metric}_mean"] = float(group[metric].mean())
-            row[f"{metric}_std"] = float(group[metric].std(ddof=0))
-        rows.append(row)
-
-    summary_df = pd.DataFrame(rows).sort_values(["adapter_type", "model", "variant"]).reset_index(drop=True)
-    summary_df.to_csv(output_root / SUMMARY_CSV.name, index=False)
-
-    lm_only = df[df["variant"] == "lm_only"]
-    lm_pssm = df[df["variant"] == "lm_pssm"]
-    if lm_only.empty or lm_pssm.empty:
-        return
-
-    merged = lm_pssm.merge(lm_only, on=["adapter_type", "model", "seed"], suffixes=("_pssm", "_lm_only"))
-    if merged.empty:
-        return
-
-    delta_rows = []
-    for (adapter_type, model_name), group in merged.groupby(["adapter_type", "model"]):
-        row = {"adapter_type": adapter_type, "model": model_name, "n_seeds": int(group["seed"].nunique())}
-        for metric in ["AUC", "AUPRC", "ACC", "F1", "MCC"]:
-            delta = group[f"{metric}_pssm"] - group[f"{metric}_lm_only"]
-            row[f"delta_{metric}_mean"] = float(delta.mean())
-            row[f"delta_{metric}_std"] = float(delta.std(ddof=0))
-        delta_rows.append(row)
-
-    pd.DataFrame(delta_rows).sort_values(["adapter_type", "model"]).reset_index(drop=True).to_csv(
-        output_root / DELTA_CSV.name, index=False
-    )
-
+    # Reviewer-facing summary outputs are six-category tables + 10-group tables.
     rebuild_six_category_tables(output_root)
 
 
