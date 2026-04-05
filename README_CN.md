@@ -2,6 +2,20 @@
 
 这是一个面向审稿与复现的干净基准工程，用于比较参数高效微调在 Anti-CRISPR 二分类任务上的效果。
 
+## 安装
+
+安装核心运行依赖：
+
+```bash
+pip install .
+```
+
+安装并包含 notebook 依赖：
+
+```bash
+pip install .[notebook]
+```
+
 ## 项目做了什么
 
 本项目在统一协议下比较：
@@ -177,6 +191,14 @@ python scripts/main.py run-10 \
   --epochs 8 \
   --resume
 ```
+
+参数含义：
+
+- `python scripts/main.py run-10`：执行完整 10 组协议。
+- `--models ankh,esm2,protbert,prott5`：指定要运行的 backbone。
+- `--seeds 11,22,33,44,55`：指定随机种子集合（用于均值与最佳 seed 统计）。
+- `--epochs 8`：第 2 阶段 adapter 微调轮数。
+- `--resume`：跳过已完成组合，从断点继续。
 
 或直接运行封装脚本：
 

@@ -4,6 +4,20 @@ For Chinese documentation, see [README_CN.md](README_CN.md).
 
 A clean, reviewer-facing benchmark for Anti-CRISPR binary prediction with parameter-efficient tuning and controlled evaluation.
 
+## Installation
+
+Install core runtime dependencies:
+
+```bash
+pip install .
+```
+
+Install with notebook support:
+
+```bash
+pip install .[notebook]
+```
+
 ## What This Project Does
 
 This project runs a complete, reproducible protocol across:
@@ -190,6 +204,14 @@ python scripts/main.py run-10 \
 	--epochs 8 \
 	--resume
 ```
+
+Command argument meaning:
+
+- `python scripts/main.py run-10`: run the complete 10-group protocol.
+- `--models ankh,esm2,protbert,prott5`: select backbones to run.
+- `--seeds 11,22,33,44,55`: set random seeds used for averaging and best-seed selection.
+- `--epochs 8`: adapter fine-tuning epochs in stage 2.
+- `--resume`: skip finished cells and continue from existing results.
 
 Or run the wrapper:
 
